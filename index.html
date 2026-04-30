@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Foleador - Sandy App</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- pdf-lib -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Foleador de PDF</h1>
+        
+        <!-- Step 1: Upload -->
+        <div id="step1" class="step active">
+            <div class="upload-area">
+                <input type="file" id="pdfInput" accept="application/pdf">
+                <label for="pdfInput" class="upload-btn">Seleccionar PDF</label>
+                <p id="fileName">Ningún archivo seleccionado</p>
+            </div>
+            <button id="nextBtn" class="btn btn-primary" disabled>Siguiente</button>
+        </div>
+
+        <!-- Step 2: Options and Preview -->
+        <div id="step2" class="step">
+            <div class="options-container">
+                <h2>Opciones de Foleado</h2>
+                
+                <div class="option-group">
+                    <label class="group-title">Dirección de Foleado:</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" id="orderNormal" name="numberingOrder" value="normal" checked>
+                            <span>Del primero al último (001, 002...)</span>
+                        </label>
+                        
+                        <label class="radio-label">
+                            <input type="radio" id="orderReverse" name="numberingOrder" value="reverse">
+                            <span>Del último al primero (...002, 001)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="reversePages">
+                        <span>Invertir páginas (El PDF final tendrá las páginas al revés)</span>
+                    </label>
+                </div>
+
+                <div class="option-group color-group">
+                    <label for="colorPicker" class="group-title">Color de Numeración:</label>
+                    <input type="color" id="colorPicker" value="#e31a1a">
+                    
+                    <label for="fontSize" class="group-title" style="margin-left: 1rem;">Tamaño de Fuente:</label>
+                    <input type="number" id="fontSize" value="24" min="10" max="100" style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid var(--border);">
+                </div>
+
+                <div class="preview-section">
+                    <h3>Previsualización (Primera Página)</h3>
+                    <p class="preview-hint">Así se verá el foleo en la esquina superior derecha</p>
+                    <div class="canvas-container" id="canvasContainer">
+                        <canvas id="previewCanvas"></canvas>
+                        <div id="previewNumber" class="preview-number">001</div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button id="backBtn" class="btn btn-secondary">Atrás</button>
+                    <button id="processBtn" class="btn btn-success">Procesar y Descargar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
