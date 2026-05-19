@@ -124,7 +124,7 @@ processBtn.addEventListener('click', async () => {
         processBtn.classList.add('processing');
         processBtn.disabled = true;
 
-        const { PDFDocument, rgb, StandardFonts, degrees } = PDFLib;
+        const { PDFDocument, rgb, StandardFonts, degrees, PDFName } = PDFLib;
 
         let pdfDoc = await PDFDocument.load(currentPdfBytes);
 
@@ -142,10 +142,15 @@ processBtn.addEventListener('click', async () => {
         }
 
         const pages = pdfDoc.getPages();
-        const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         const totalPages = pages.length;
         const margin = 20;
         const fontSize = parseInt(fontSizeInput.value, 10) || 24;
+
+        // Use a temporary document to generate the foleado as an Annotation Stamp
+        // This ensures it renders on top of everything, including other annotations (like white boxes)
+        const tempDoc = await PDFDocument.create();
+        const tempFont = await tempDoc.embedFont(StandardFonts.HelveticaBold);
+        const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold); // for measuring text width
 
         for (let i = 0; i < pages.length; i++) {
             const page = pages[i];
@@ -175,17 +180,38 @@ processBtn.addEventListener('click', async () => {
                     y = height - margin - fontSize + (fontSize * 0.25);
             }
 
-            page.drawText(text, {
+            // 1. Draw text on a temporary blank page
+            const tempPage = tempDoc.addPage([width, height]);
+            tempPage.drawText(text, {
                 x,
                 y,
                 size: fontSize,
-                font,
+                font: tempFont,
                 color: rgb(color.r, color.g, color.b),
                 rotate: degrees(rotation),
             });
+
+            // 2. Embed the temporary page into the main document as a Form XObject
+            const embeddedForm = await pdfDoc.embedPage(tempPage);
+
+            // 3. To ensure macOS Preview compatibility, we must use a formal Widget Annotation.
+            // We create a TextField and replace its appearance with our foleado.
+            const form = pdfDoc.getForm() || pdfDoc.addForm();
+            const field = form.createTextField(`foleado_${i}_${Date.now()}`);
+            
+            // Add the field to the page, covering it entirely
+            field.addToPage(page, { x: 0, y: 0, width, height, borderWidth: 0 });
+            
+            // Replace the widget's appearance stream with our embedded page
+            const widget = field.acroField.getWidgets()[0];
+            widget.setNormalAppearance(embeddedForm.ref);
+            
+            // Make read-only so it behaves like a stamp
+            field.enableReadOnly();
         }
 
-        const pdfBytes = await pdfDoc.save();
+        // Pass updateFieldAppearances: false so pdf-lib doesn't overwrite our custom appearance stream
+        const pdfBytes = await pdfDoc.save({ updateFieldAppearances: false });
         const blob = new Blob([pdfBytes], { type: "application/pdf" });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
