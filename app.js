@@ -18,6 +18,7 @@ const fontSizeInput = document.getElementById('fontSize');
 const reversePagesCheckbox = document.getElementById('reversePages');
 const orderNormalRadio = document.getElementById('orderNormal');
 const orderReverseRadio = document.getElementById('orderReverse');
+const startNumberInput = document.getElementById('startNumber');
 
 const padZero = (num) => num.toString().padStart(3, '0');
 
@@ -67,6 +68,7 @@ fontSizeInput.addEventListener('input', async () => {
 
 orderNormalRadio.addEventListener('change', updatePreviewNumber);
 orderReverseRadio.addEventListener('change', updatePreviewNumber);
+startNumberInput.addEventListener('input', updatePreviewNumber);
 reversePagesCheckbox.addEventListener('change', async () => {
     updatePreviewNumber();
     await renderPreview();
@@ -75,9 +77,12 @@ reversePagesCheckbox.addEventListener('change', async () => {
 function updatePreviewNumber() {
     if (!pdfDocument) return;
 
+    const startNumVal = parseInt(startNumberInput.value, 10);
+    const startNum = isNaN(startNumVal) ? 1 : startNumVal;
+
     const totalPages = pdfDocument.numPages;
     const isReverseNumbering = orderReverseRadio.checked;
-    const numberToDisplay = isReverseNumbering ? totalPages : 1;
+    const numberToDisplay = isReverseNumbering ? (startNum + totalPages - 1) : startNum;
 
     previewNumber.textContent = padZero(numberToDisplay);
 }
@@ -132,6 +137,8 @@ processBtn.addEventListener('click', async () => {
         const isReversePages = reversePagesCheckbox.checked;
         const colorHex = colorPicker.value;
         const color = hexToRgb(colorHex);
+        const startNumVal = parseInt(startNumberInput.value, 10);
+        const startNum = isNaN(startNumVal) ? 1 : startNumVal;
 
         if (isReversePages) {
             const reversedDoc = await PDFDocument.create();
@@ -157,7 +164,7 @@ processBtn.addEventListener('click', async () => {
             const { width, height } = page.getSize();
             const rotation = page.getRotation().angle;
 
-            const num = isReverseNumbering ? (totalPages - i) : (i + 1);
+            const num = isReverseNumbering ? (startNum + totalPages - 1 - i) : (startNum + i);
             const text = padZero(num);
             const textWidth = font.widthOfTextAtSize(text, fontSize);
 
@@ -194,23 +201,26 @@ processBtn.addEventListener('click', async () => {
             // 2. Embed the temporary page into the main document as a Form XObject
             const embeddedForm = await pdfDoc.embedPage(tempPage);
 
-            // 3. To ensure macOS Preview compatibility, we must use a formal Widget Annotation.
-            // We create a TextField and replace its appearance with our foleado.
-            const form = pdfDoc.getForm() || pdfDoc.addForm();
-            const field = form.createTextField(`foleado_${i}_${Date.now()}`);
-            
-            // Add the field to the page, covering it entirely
-            field.addToPage(page, { x: 0, y: 0, width, height, borderWidth: 0 });
-            
-            // Replace the widget's appearance stream with our embedded page
-            const widget = field.acroField.getWidgets()[0];
-            widget.setNormalAppearance(embeddedForm.ref);
-            
-            // Make read-only so it behaves like a stamp
-            field.enableReadOnly();
+            // 3. Use a Stamp annotation instead of a form field. 
+            // This ensures it renders on top of other annotations and is visible in macOS Preview.
+            const stampAnnot = pdfDoc.context.obj({
+                Type: 'Annot',
+                Subtype: 'Stamp',
+                Rect: [0, 0, width, height],
+                AP: { N: embeddedForm.ref },
+                F: 4, // Print flag
+            });
+            const stampRef = pdfDoc.context.register(stampAnnot);
+
+            let annots = page.node.Annots();
+            if (!annots) {
+                page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([]));
+                annots = page.node.Annots();
+            }
+            annots.push(stampRef);
         }
 
-        // Pass updateFieldAppearances: false so pdf-lib doesn't overwrite our custom appearance stream
+        // Pass updateFieldAppearances: false so pdf-lib doesn't overwrite anything automatically
         const pdfBytes = await pdfDoc.save({ updateFieldAppearances: false });
         const blob = new Blob([pdfBytes], { type: "application/pdf" });
         const link = document.createElement('a');
